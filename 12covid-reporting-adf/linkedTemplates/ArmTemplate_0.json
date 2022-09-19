@@ -1,0 +1,1009 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "12covid-reporting-adf"
+		},
+		"ls_adls_covid_accountKey": {
+			"type": "secureString",
+			"metadata": "Secure string for 'accountKey' of 'ls_adls_covid'"
+		},
+		"ls_database_covid_db_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'ls_database_covid_db'"
+		},
+		"ls_adls_covid_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://covid19report2022.dfs.core.windows.net/"
+		},
+		"ls_dataset_ecdu_git_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "@{linkedService().sourceBaseURL}"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/ls_adls_covid')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('ls_adls_covid_properties_typeProperties_url')]",
+					"accountKey": {
+						"type": "SecureString",
+						"value": "[parameters('ls_adls_covid_accountKey')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ls_database_covid_db')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"connectionString": "[parameters('ls_database_covid_db_connectionString')]"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ls_dataset_ecdu_git')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"parameters": {
+					"sourceBaseURL": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "HttpServer",
+				"typeProperties": {
+					"url": "[parameters('ls_dataset_ecdu_git_properties_typeProperties_url')]",
+					"enableServerCertificateValidation": true,
+					"authenticationType": "Anonymous"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AzureSqlTable1')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_database_covid_db",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "sql"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "country",
+						"type": "varchar"
+					},
+					{
+						"name": "country_code_2_digit",
+						"type": "varchar"
+					},
+					{
+						"name": "country_code_3_digit",
+						"type": "varchar"
+					},
+					{
+						"name": "year_week",
+						"type": "varchar"
+					},
+					{
+						"name": "week_start_date",
+						"type": "date"
+					},
+					{
+						"name": "week_end_date",
+						"type": "date"
+					},
+					{
+						"name": "new_cases",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "tests_done",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "population",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "testing_data_source",
+						"type": "varchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "covid_reporting",
+					"table": "testing"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_database_covid_db')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Config_file_read')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "lookup"
+				},
+				"annotations": [],
+				"type": "Json",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "ecdc_file_list.json",
+						"fileSystem": "configs"
+					}
+				},
+				"schema": {
+					"type": "object",
+					"properties": {
+						"sourceBaseURL": {
+							"type": "string"
+						},
+						"sourceRelativeURL": {
+							"type": "string"
+						},
+						"sinkFileName": {
+							"type": "string"
+						}
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_ECDC_csv_dl')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"sinkFileName": {
+						"type": "string"
+					}
+				},
+				"folder": {
+					"name": "raw"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().sinkFileName",
+							"type": "Expression"
+						},
+						"folderPath": "ecdc",
+						"fileSystem": "raw"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_ECDC_csv_http')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_dataset_ecdu_git",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"sourceBaseURL": {
+							"value": "@dataset().sourceBaseURL",
+							"type": "Expression"
+						}
+					}
+				},
+				"parameters": {
+					"sourceBaseURL": {
+						"type": "string"
+					},
+					"sourceRelativeURL": {
+						"type": "string"
+					}
+				},
+				"folder": {
+					"name": "sql"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "HttpServerLocation",
+						"relativeUrl": {
+							"value": "@dataset().sourceRelativeURL",
+							"type": "Expression"
+						}
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_dataset_ecdu_git')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_country_lookup')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "lookup"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "country_lookup.csv",
+						"folderPath": "country_lookup",
+						"fileSystem": "lookup"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "country",
+						"type": "String"
+					},
+					{
+						"name": "country_code_2_digit",
+						"type": "String"
+					},
+					{
+						"name": "country_code_3_digit",
+						"type": "String"
+					},
+					{
+						"name": "continent",
+						"type": "String"
+					},
+					{
+						"name": "population",
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_dimdate_lookup')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "lookup"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "dim_date.csv",
+						"folderPath": "dim_date",
+						"fileSystem": "lookup"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "date_key",
+						"type": "String"
+					},
+					{
+						"name": "date",
+						"type": "String"
+					},
+					{
+						"name": "year",
+						"type": "String"
+					},
+					{
+						"name": "month",
+						"type": "String"
+					},
+					{
+						"name": "day",
+						"type": "String"
+					},
+					{
+						"name": "day_name",
+						"type": "String"
+					},
+					{
+						"name": "day_of_year",
+						"type": "String"
+					},
+					{
+						"name": "week_of_month",
+						"type": "String"
+					},
+					{
+						"name": "week_of_year",
+						"type": "String"
+					},
+					{
+						"name": "month_name",
+						"type": "String"
+					},
+					{
+						"name": "year_month",
+						"type": "String"
+					},
+					{
+						"name": "year_week",
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_hospital_admission_daily')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_database_covid_db",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "processed"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "country",
+						"type": "varchar"
+					},
+					{
+						"name": "country_code_2_digit",
+						"type": "varchar"
+					},
+					{
+						"name": "country_code_3_digit",
+						"type": "varchar"
+					},
+					{
+						"name": "population",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "reported_date",
+						"type": "date"
+					},
+					{
+						"name": "hospital_occupancy_count",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "icu_occupancy_count",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "source",
+						"type": "varchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "covid_reporting",
+					"table": "hospital_admissions_daily"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_database_covid_db')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_population_raw_zip')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "raw"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "population_by_age.tsv.gz",
+						"fileSystem": "population"
+					},
+					"columnDelimiter": "\t",
+					"compressionCodec": "gzip",
+					"compressionLevel": "Optimal",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "\u001f�\b\bHK�^\u0000\u0003tps00010.tsv\u0000�\\ێ�H�}�~E~�� ����ۖ�B�l��j��\u0002\u0006�c",
+						"type": "String"
+					},
+					{
+						"name": "�aw����U���8��jz�m�p$Q�ɸg0�������\u001f?���o�������_�\u000e]��!ᒰm\u0004[�N0",
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_population_unzip')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "raw"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileSystem": "raw"
+					},
+					"columnDelimiter": "\t",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_processed_cases_and_deaths')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "processed"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "cases_deaths.csv",
+						"folderPath": "ecdc/cases_deaths",
+						"fileSystem": "processed"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_processed_hospital_admission_daily')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "processed"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "hospital_admission_daily.csv",
+						"folderPath": "ecdc/hospital_admission_daily",
+						"fileSystem": "processed"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_processed_hospital_admission_weekly')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "processed"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "hospital_admission_weekly.csv",
+						"folderPath": "ecdc/hospital_admission_weekly",
+						"fileSystem": "processed"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_raw_cases_and_deaths')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "raw"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "cases_deaths.csv",
+						"folderPath": "ecdc/cases_deaths",
+						"fileSystem": "raw"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "country",
+						"type": "String"
+					},
+					{
+						"name": "country_code",
+						"type": "String"
+					},
+					{
+						"name": "continent",
+						"type": "String"
+					},
+					{
+						"name": "population",
+						"type": "String"
+					},
+					{
+						"name": "indicator",
+						"type": "String"
+					},
+					{
+						"name": "daily_count",
+						"type": "String"
+					},
+					{
+						"name": "date",
+						"type": "String"
+					},
+					{
+						"name": "rate_14_day",
+						"type": "String"
+					},
+					{
+						"name": "source",
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_raw_hospital_admission')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "raw"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "hospital_admissions.csv",
+						"folderPath": "ecdc/hospital_admissions",
+						"fileSystem": "raw"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "country",
+						"type": "String"
+					},
+					{
+						"name": "indicator",
+						"type": "String"
+					},
+					{
+						"name": "date",
+						"type": "String"
+					},
+					{
+						"name": "year_week",
+						"type": "String"
+					},
+					{
+						"name": "value",
+						"type": "String"
+					},
+					{
+						"name": "source",
+						"type": "String"
+					},
+					{
+						"name": "url",
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_testing_HDInsights')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_covid",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "processed"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "000000_0",
+						"folderPath": "ecdc/testing",
+						"fileSystem": "processed"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_adls_covid')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/sql_cases_and_deaths')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_database_covid_db",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "sql"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "country",
+						"type": "varchar"
+					},
+					{
+						"name": "country_code_2_digit",
+						"type": "varchar"
+					},
+					{
+						"name": "country_code_3_digit",
+						"type": "varchar"
+					},
+					{
+						"name": "population",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "cases_count",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "deaths_count",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "reported_date",
+						"type": "date"
+					},
+					{
+						"name": "source",
+						"type": "varchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "covid_reporting",
+					"table": "cases_and_deaths"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ls_database_covid_db')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pl_ingest_ECDC_data')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Lookup ECDC file list",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "JsonSource",
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "JsonReadSettings"
+								}
+							},
+							"dataset": {
+								"referenceName": "Config_file_read",
+								"type": "DatasetReference",
+								"parameters": {}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "Execute copy for every record",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "Lookup ECDC file list",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('Lookup ECDC file list').output.value",
+								"type": "Expression"
+							},
+							"activities": [
+								{
+									"name": "Copy ECDC data",
+									"type": "Copy",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "DelimitedTextSource",
+											"storeSettings": {
+												"type": "HttpReadSettings",
+												"requestMethod": "GET"
+											},
+											"formatSettings": {
+												"type": "DelimitedTextReadSettings"
+											}
+										},
+										"sink": {
+											"type": "DelimitedTextSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings"
+											},
+											"formatSettings": {
+												"type": "DelimitedTextWriteSettings",
+												"quoteAllText": true,
+												"fileExtension": ".txt"
+											}
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"typeConversion": true,
+											"typeConversionSettings": {
+												"allowDataTruncation": true,
+												"treatBooleanAsNumber": false
+											}
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "ds_ECDC_csv_http",
+											"type": "DatasetReference",
+											"parameters": {
+												"sourceBaseURL": {
+													"value": "@item().sourceBaseURL",
+													"type": "Expression"
+												},
+												"sourceRelativeURL": {
+													"value": "@item().sourceRelativeURL",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "ds_ECDC_csv_dl",
+											"type": "DatasetReference",
+											"parameters": {
+												"sinkFileName": {
+													"value": "@item().sinkFileName",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"folder": {
+					"name": "ingest"
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-09-15T15:27:15Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/Config_file_read')]",
+				"[concat(variables('factoryId'), '/datasets/ds_ECDC_csv_http')]",
+				"[concat(variables('factoryId'), '/datasets/ds_ECDC_csv_dl')]"
+			]
+		}
+	]
+}
