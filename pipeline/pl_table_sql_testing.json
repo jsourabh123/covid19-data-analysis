@@ -159,7 +159,7 @@
 				},
 				"inputs": [
 					{
-						"referenceName": "DelimitedText1",
+						"referenceName": "ds_testing_HDInsights",
 						"type": "DatasetReference"
 					}
 				],
@@ -171,6 +171,9 @@
 				]
 			}
 		],
+		"folder": {
+			"name": "transfer_to_warehouse"
+		},
 		"annotations": [],
 		"lastPublishTime": "2022-09-19T06:48:30Z"
 	},

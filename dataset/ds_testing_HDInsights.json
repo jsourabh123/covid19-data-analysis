@@ -1,9 +1,12 @@
 {
-	"name": "DelimitedText1",
+	"name": "ds_testing_HDInsights",
 	"properties": {
 		"linkedServiceName": {
 			"referenceName": "ls_adls_covid",
 			"type": "LinkedServiceReference"
+		},
+		"folder": {
+			"name": "processed"
 		},
 		"annotations": [],
 		"type": "DelimitedText",

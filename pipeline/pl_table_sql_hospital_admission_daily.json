@@ -57,6 +57,9 @@
 				]
 			}
 		],
+		"folder": {
+			"name": "transfer_to_warehouse"
+		},
 		"annotations": [],
 		"lastPublishTime": "2022-09-19T06:19:09Z"
 	},
