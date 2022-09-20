@@ -18,7 +18,8 @@ Testing raw data image.
 
 transformations:- Get start data and end data of a week from dim_date lookup file.Fetch 2 digit and 3 digit country code from dim_country table.
 
-we copy the transformed data in Azure SQL Database using ADF copy activity. Analyzed the transfromed data to create Power BI dashboard for trends based on countries and testing. following are the screenshot of dashboard:-
+we copy the transformed data in Azure SQL Database using ADF copy activity. Analyzed the transfromed data to create Power BI dashboard for trends based on countries and testing. 
+Following are the screenshot of dashboard:-
 
 1) Trends of total cases, deaths, Hospital and ICU occupancy for countries in Europe:-
 
